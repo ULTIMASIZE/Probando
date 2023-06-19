@@ -1,0 +1,45 @@
+import win32com.client as win32
+import pandas as pd
+
+def find_mailbox(folder, mailbox_name):
+    if folder.Name == mailbox_name:
+        return folder
+
+    for subfolder in folder.Folders:
+        mailbox = find_mailbox(subfolder, mailbox_name)
+        if mailbox is not None:
+            return mailbox
+
+    return None
+
+def retrieve_emails_from_outlook(mailbox_names):
+    outlook = win32.Dispatch("Outlook.Application").GetNamespace("MAPI")
+    root_folder = outlook.Folders[1]  # Default root folder for the current Outlook profile
+
+    data = []
+    for mailbox_name in mailbox_names:
+        mailbox = find_mailbox(root_folder, mailbox_name)
+        if mailbox is None:
+            print(f"Mailbox '{mailbox_name}' not found.")
+            continue
+
+        inbox = mailbox.Folders("Inbox")
+        messages = inbox.Items
+        messages.Sort("[ReceivedTime]", True)
+
+        for message in messages:
+            email_data = {
+                "Mailbox": mailbox.Name,
+                "Title": message.Subject,
+                "Sender": message.SenderName,
+                "ReceivedTime": message.ReceivedTime
+            }
+            data.append(email_data)
+
+    df = pd.DataFrame(data)
+    df.to_excel("email_data.xlsx", index=False)
+
+# Specify the mailbox names as a list
+mailbox_names = ["Mailbox1", "Mailbox2", "Mailbox3"]
+
+retrieve_emails_from_outlook(mailbox_names)
