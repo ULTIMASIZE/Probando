@@ -1,0 +1,36 @@
+from nba_api.stats.endpoints import boxscoretraditionalv2
+from openpyxl import Workbook
+
+def get_player_box_score(game_id, player_name):
+    # Retrieve the box score data for the specified game
+    box_score = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+    box_score_data = box_score.get_data_frames()[0]  # Get the first dataframe (PlayerStats)
+
+    # Filter the box score data for the specified player
+    player_data = box_score_data[box_score_data['PLAYER_NAME'] == player_name]
+
+    return player_data
+
+def write_to_excel(player_data, excel_file):
+    # Create a new workbook and get the active sheet
+    wb = Workbook()
+    sheet = wb.active
+
+    # Write the column headers
+    headers = player_data.columns.values.tolist()
+    sheet.append(headers)
+
+    # Write the player's box score data row by row
+    for _, row in player_data.iterrows():
+        sheet.append(row.tolist())
+
+    # Save the workbook to the specified file
+    wb.save(excel_file)
+
+# Example usage
+game_id = '0022000001'  # Example game ID
+player_name = 'LeBron James'  # Example player name
+excel_file = 'player_box_score.xlsx'  # Example output Excel file
+
+player_data = get_player_box_score(game_id, player_name)
+write_to_excel(player_data, excel_file)
