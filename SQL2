@@ -1,0 +1,8 @@
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY folio_id ORDER BY fecha_act DESC) AS fila
+    FROM `tu_proyecto.tu_dataset.tu_tabla`
+    WHERE folio_id IN (123, 456, 789) -- Lista de folios específicos
+)
+WHERE fila = 1;
