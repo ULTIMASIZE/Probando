@@ -1,0 +1,25 @@
+SELECT local_id, COUNT(*) AS cantidad_folios
+FROM (
+    SELECT t.*
+    FROM tu_tabla t
+    JOIN (
+        SELECT folio_id, MAX(fecha_act) AS max_fecha
+        FROM tu_tabla
+        GROUP BY folio_id
+    ) sub ON t.folio_id = sub.folio_id AND t.fecha_act = sub.max_fecha
+) ultimas_lineas
+WHERE local_id = 123 -- Número del local que deseas buscar
+GROUP BY local_id;
+
+
+-----LUMI------------
+
+
+SELECT local_id, COUNT(folio_id) AS cantidad_folios
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY folio_id ORDER BY fecha_act DESC) AS fila
+    FROM `tu_proyecto.tu_dataset.tu_tabla`
+)
+WHERE fila = 1 AND local_id = 123 -- Número del local que deseas buscar
+GROUP BY local_id;
