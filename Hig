@@ -1,9 +1,10 @@
 import pandas as pd
 import os
+from openpyxl import load_workbook
 
-# Definir la ruta al escritorio (esto funciona en Windows)
+# Definir la ruta al escritorio
 desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-folder_name = "NombreDeTuCarpeta"  # Reemplazá con el nombre real de tu carpeta
+folder_name = "NombreDeTuCarpeta"  # Reemplazá con el nombre de tu carpeta
 folder_path = os.path.join(desktop, folder_name)
 
 # Rutas de los archivos
@@ -13,24 +14,25 @@ prueba_path = os.path.join(folder_path, "prueba.xlsx")
 # Leer archivo base
 df_base = pd.read_csv(base_path)
 
-# Crear DataFrame vacío con columnas originales + nuevas
+# Crear columnas nuevas
 new_columns = list(df_base.columns) + ["Category", "Pend Date"]
-df_empty = pd.DataFrame(columns=new_columns)
 
-# Guardar encabezados en "prueba.xlsx"
+# Paso 1: Guardar encabezados
+df_empty = pd.DataFrame(columns=new_columns)
 df_empty.to_excel(prueba_path, index=False)
 
-# --- Paso nuevo: Filtrar y copiar casos con columna L > 60 ---
-columna_L = df_base.columns[11]  # Índice 11 = Columna L
-df_filtrado = df_base[df_base[columna_L] > 60].copy()
-
-# Agregar las columnas nuevas necesarias
+# Paso 2: Filtrar filas donde columna L >= 60
+columna_L = df_base.columns[11]  # Columna L = índice 11
+df_filtrado = df_base[df_base[columna_L] >= 60].copy()
 df_filtrado["Category"] = "High RTW"
 df_filtrado["Pend Date"] = ""
+df_filtrado = df_filtrado[new_columns]  # Ordenar columnas
 
-# Reordenar columnas para coincidir con "prueba"
-df_filtrado = df_filtrado[new_columns]
-
-# Escribir al archivo "prueba.xlsx"
+# Paso 3: Cargar el archivo Excel existente y pegar en la hoja principal
+book = load_workbook(prueba_path)
 with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-    df_filtrado.to_excel(writer, index=False, header=False, startrow=1)
+    writer.book = book
+    writer.sheets = {ws.title: ws for ws in book.worksheets}
+    start_row = writer.sheets["Sheet1"].max_row  # Determinar la primera fila vacía
+    df_filtrado.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
