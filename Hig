@@ -3,19 +3,34 @@ import os
 
 # Definir la ruta al escritorio (esto funciona en Windows)
 desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-folder_name = "NombreDeTuCarpeta"  # Reemplazá con el nombre de la carpeta donde está el archivo
+folder_name = "NombreDeTuCarpeta"  # Reemplazá con el nombre real de tu carpeta
 folder_path = os.path.join(desktop, folder_name)
 
-# Leer el archivo CSV
+# Rutas de los archivos
 base_path = os.path.join(folder_path, "base.csv")
+prueba_path = os.path.join(folder_path, "prueba.xlsx")
+
+# Leer archivo base
 df_base = pd.read_csv(base_path)
 
-# Crear un nuevo DataFrame con solo los encabezados y las columnas nuevas
+# Crear DataFrame vacío con columnas originales + nuevas
 new_columns = list(df_base.columns) + ["Category", "Pend Date"]
 df_empty = pd.DataFrame(columns=new_columns)
 
-# Guardar como Excel
-prueba_path = os.path.join(folder_path, "prueba.xlsx")
+# Guardar encabezados en "prueba.xlsx"
 df_empty.to_excel(prueba_path, index=False)
 
-print(f"Archivo creado exitosamente en: {prueba_path}")
+# --- Paso nuevo: Filtrar y copiar casos con columna L > 60 ---
+columna_L = df_base.columns[11]  # Índice 11 = Columna L
+df_filtrado = df_base[df_base[columna_L] > 60].copy()
+
+# Agregar las columnas nuevas necesarias
+df_filtrado["Category"] = "High RTW"
+df_filtrado["Pend Date"] = ""
+
+# Reordenar columnas para coincidir con "prueba"
+df_filtrado = df_filtrado[new_columns]
+
+# Escribir al archivo "prueba.xlsx"
+with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+    df_filtrado.to_excel(writer, index=False, header=False, startrow=1)
