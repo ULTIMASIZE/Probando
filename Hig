@@ -2,12 +2,12 @@ import pandas as pd
 import os
 from openpyxl import load_workbook
 
-# Definir la ruta al escritorio
+# Ruta al escritorio
 desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-folder_name = "NombreDeTuCarpeta"  # Reemplazá con el nombre de tu carpeta
+folder_name = "BA Hig"  # Reemplazá con el nombre exacto de tu carpeta
 folder_path = os.path.join(desktop, folder_name)
 
-# Rutas de los archivos
+# Rutas de archivos
 base_path = os.path.join(folder_path, "base.csv")
 prueba_path = os.path.join(folder_path, "prueba.xlsx")
 
@@ -16,23 +16,35 @@ df_base = pd.read_csv(base_path)
 
 # Crear columnas nuevas
 new_columns = list(df_base.columns) + ["Category", "Pend Date"]
-
-# Paso 1: Guardar encabezados
 df_empty = pd.DataFrame(columns=new_columns)
+
+# Guardar encabezados en "prueba.xlsx"
 df_empty.to_excel(prueba_path, index=False)
 
-# Paso 2: Filtrar filas donde columna L >= 60
-columna_L = df_base.columns[11]  # Columna L = índice 11
-df_filtrado = df_base[df_base[columna_L] >= 60].copy()
-df_filtrado["Category"] = "High RTW"
-df_filtrado["Pend Date"] = ""
-df_filtrado = df_filtrado[new_columns]  # Ordenar columnas
-
-# Paso 3: Cargar el archivo Excel existente y pegar en la hoja principal
+# Cargar workbook
 book = load_workbook(prueba_path)
+start_row = 1  # Para llevar control del punto donde pegar nuevas filas
+
 with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
     writer.book = book
     writer.sheets = {ws.title: ws for ws in book.worksheets}
-    start_row = writer.sheets["Sheet1"].max_row  # Determinar la primera fila vacía
-    df_filtrado.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+    sheet = writer.sheets["Sheet1"]
 
+    # --- Paso 1: L > 11 → High RTW ---
+    col_L = df_base.columns[11]  # Columna L = índice 11
+    df_high_rtw = df_base[df_base[col_L] > 11].copy()
+    df_high_rtw["Category"] = "High RTW"
+    df_high_rtw["Pend Date"] = ""
+    df_high_rtw = df_high_rtw[new_columns]
+
+    start_row = sheet.max_row
+    df_high_rtw.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+    # --- Paso 2: L > 60 → Case Age > 60 days ---
+    df_case_age = df_base[df_base[col_L] > 60].copy()
+    df_case_age["Category"] = "Case Age > 60 days"
+    df_case_age["Pend Date"] = ""
+    df_case_age = df_case_age[new_columns]
+
+    start_row = sheet.max_row
+    df_case_age.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
