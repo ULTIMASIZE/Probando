@@ -100,6 +100,10 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         start_row = sheet.max_row
         df_hold.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
+    print("Valores únicos en columna I:", df_base[df_base.columns[8]].unique())
+    print("Valores únicos en columna BE:", df_base[df_base.columns[57]].unique())
+
+
     # --- Paso 7: Status Mismatch ---
     col_I = df_base.columns[8]   # Columna I = index 8
     col_BE = df_base.columns[57] # Columna BE = index 57
