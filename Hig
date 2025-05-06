@@ -38,7 +38,6 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
     df_high_rtw["Category"] = "High RTW"
     df_high_rtw["Pend Date"] = ""
     df_high_rtw = df_high_rtw[new_columns]
-
     start_row = sheet.max_row
     df_high_rtw.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
@@ -47,11 +46,10 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
     df_case_age["Category"] = "Case Age > 60 days"
     df_case_age["Pend Date"] = ""
     df_case_age = df_case_age[new_columns]
-
     start_row = sheet.max_row
     df_case_age.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
-    # --- Paso 3: Filtros por valores en columna J ---
+    # --- Paso 3: Varios filtros por J ---
     filtros = {
         "OverallSLA": "OverallSLA WB",
         "GD_SystemErrors": "System Errors WB",
@@ -69,3 +67,27 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
             df_filtro = df_filtro[new_columns]
             start_row = sheet.max_row
             df_filtro.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+    # --- Paso 4: J vacío → Null WB ---
+    df_null = df_base[df_base[col_J].isna()].copy()
+    if not df_null.empty:
+        df_null["Category"] = "Null WB"
+        df_null["Pend Date"] = ""
+        df_null = df_null[new_columns]
+        start_row = sheet.max_row
+        df_null.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+    # --- Paso 5: Domain Mismatch values ---
+    domain_mismatch_vals = [
+        "GD_CANADA", "GD_MULTICURRENCY", "GD_US_CST", "GD_UK", "GD_Brigthon_Approval_4"
+    ]
+    df_mismatch = df_base[df_base[col_J].isin(domain_mismatch_vals)].copy()
+    if not df_mismatch.empty:
+        df_mismatch["Category"] = "Domain Mismatch"
+        df_mismatch["Pend Date"] = ""
+        df_mismatch = df_mismatch[new_columns]
+        start_row = sheet.max_row
+        df_mismatch.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+# --- Mensaje final ---
+print("File finished")
