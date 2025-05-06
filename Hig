@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from openpyxl import load_workbook
+from datetime import datetime
 
 # Ruta al escritorio
 desktop = os.path.join(os.path.expanduser("~"), "Desktop")
@@ -124,6 +125,30 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         df_status_mismatch = df_status_mismatch[new_columns]
         start_row = sheet.max_row
         df_status_mismatch.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+        
+    col_fecha = df_base.columns[111]  # Columna 112
+    col_J = df_base.columns[9]        # Columna J = índice 9
+
+    # Convertir a datetime (ignorar errores)
+    df_base[col_fecha] = pd.to_datetime(df_base[col_fecha], errors='coerce')
+
+    # Fecha actual
+    hoy = pd.Timestamp(datetime.today().date())
+
+    # Filtro combinado: fecha < 3 días + columna J = "GD_Pend"
+    df_pend_expired = df_base[
+        ((hoy - df_base[col_fecha]).dt.days < 3) &
+        (df_base[col_J] == "GD_Pend")
+    ].copy()
+
+    if not df_pend_expired.empty:
+        df_pend_expired["Category"] = "Pend expired date"
+        df_pend_expired["Pend Date"] = ""
+        df_pend_expired = df_pend_expired[new_columns]
+        start_row = sheet.max_row
+        df_pend_expired.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
 
 
 
