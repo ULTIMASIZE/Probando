@@ -100,6 +100,28 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         start_row = sheet.max_row
         df_hold.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
+    # --- Paso 7: Status Mismatch ---
+    col_I = df_base.columns[8]   # Columna I = index 8
+    col_BE = df_base.columns[57] # Columna BE = index 57
+
+    df_status_1 = df_base[
+        (df_base[col_I] == "No") & (df_base[col_BE] == "Open")
+    ].copy()
+
+    df_status_2 = df_base[
+        (df_base[col_I] == "Yes") & (df_base[col_BE] == "Pended")
+    ].copy()
+
+    df_status_mismatch = pd.concat([df_status_1, df_status_2])
+
+    if not df_status_mismatch.empty:
+        df_status_mismatch["Category"] = "Status Mismatch"
+        df_status_mismatch["Pend Date"] = ""
+        df_status_mismatch = df_status_mismatch[new_columns]
+        start_row = sheet.max_row
+        df_status_mismatch.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+
 
 # --- Mensaje final ---
 print("File finished")
