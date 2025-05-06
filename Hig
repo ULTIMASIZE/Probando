@@ -89,5 +89,17 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         start_row = sheet.max_row
         df_mismatch.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
+        # --- Paso 6: GD_SYSTEM_HOLD y L >= 3 ---
+    df_hold = df_base[
+        (df_base[col_J] == "GD_SYSTEM_HOLD") & (df_base[col_L] >= 3)
+    ].copy()
+    if not df_hold.empty:
+        df_hold["Category"] = "System hold > 3 days"
+        df_hold["Pend Date"] = ""
+        df_hold = df_hold[new_columns]
+        start_row = sheet.max_row
+        df_hold.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+
 # --- Mensaje final ---
 print("File finished")
