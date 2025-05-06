@@ -30,8 +30,10 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
     writer.sheets = {ws.title: ws for ws in book.worksheets}
     sheet = writer.sheets["Sheet1"]
 
+    col_L = df_base.columns[11]  # Columna L
+    col_J = df_base.columns[9]   # Columna J
+
     # --- Paso 1: L > 11 → High RTW ---
-    col_L = df_base.columns[11]  # Columna L = índice 11
     df_high_rtw = df_base[df_base[col_L] > 11].copy()
     df_high_rtw["Category"] = "High RTW"
     df_high_rtw["Pend Date"] = ""
@@ -48,3 +50,22 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
 
     start_row = sheet.max_row
     df_case_age.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
+
+    # --- Paso 3: Filtros por valores en columna J ---
+    filtros = {
+        "OverallSLA": "OverallSLA WB",
+        "GD_SystemErrors": "System Errors WB",
+        "GD_SPECIAL_HANDLING_09": "Special Handling WB",
+        "GD_SPECIAL_HANDLING_04": "Special Handling WB",
+        "GD_Exceptions": "Exceptions WB",
+        "GD_DISPUTE_PARKING": "Dispute Parking WB"
+    }
+
+    for valor, categoria in filtros.items():
+        df_filtro = df_base[df_base[col_J] == valor].copy()
+        if not df_filtro.empty:
+            df_filtro["Category"] = categoria
+            df_filtro["Pend Date"] = ""
+            df_filtro = df_filtro[new_columns]
+            start_row = sheet.max_row
+            df_filtro.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
