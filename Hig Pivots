@@ -1,0 +1,54 @@
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.worksheet.pivot import (
+    PivotTable,
+    PivotCache,
+    PivotField,
+    CacheField,
+    CacheHierarchy,
+    SharedItems,
+)
+from openpyxl.utils import get_column_letter
+
+# Paso 1: Abrimos el archivo
+wb = load_workbook(prueba_path)
+
+# Paso 2: Accedemos a la hoja con los datos
+data_sheet = wb["Sheet1"]
+max_row = data_sheet.max_row
+max_col = data_sheet.max_column
+
+# Paso 3: Creamos una hoja nueva para la pivot
+if "Pivot 1" in wb.sheetnames:
+    del wb["Pivot 1"]
+pivot_sheet = wb.create_sheet("Pivot 1")
+
+# Paso 4: Definir el rango de origen de datos
+data_range = f"Sheet1!A1:{get_column_letter(max_col)}{max_row}"
+
+# Paso 5: Crear el PivotCache (fuente)
+pivot_cache = PivotCache(recordCount=max_row - 1, cacheFields=[], cacheSource="worksheet")
+for col in range(1, max_col + 1):
+    header = data_sheet.cell(row=1, column=col).value
+    pivot_cache.cacheFields.append(
+        CacheField(name=header, sharedItems=SharedItems())
+    )
+
+# Paso 6: Crear el PivotTable
+pivot_table = PivotTable(name="PivotTable1", cache=pivot_cache, ref="A3", data=data_range)
+
+# --- Definir filas, columnas, valores ---
+# Row: Market
+pivot_table.rowFields.append(PivotField(name="Market", axis="row"))
+
+# Column: Category
+pivot_table.colFields.append(PivotField(name="Category", axis="col"))
+
+# Values: Count of Case ID
+pivot_table.dataFields.append(PivotField(name="Case ID", axis="data", dataFunction="count"))
+
+# Agregar la pivot a la hoja
+pivot_sheet.add_pivot(pivot_table)
+
+# Paso 7: Guardar el archivo
+wb.save(prueba_path)
+print("Tabla dinámica creada en hoja 'Pivot 1'")
