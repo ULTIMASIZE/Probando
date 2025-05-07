@@ -163,12 +163,19 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         start_row = sheet.max_row
         df_pend_34.to_excel(writer, index=False, header=False, startrow=start_row, sheet_name="Sheet1")
 
-    # Eliminar duplicados basados en la columna "Case ID" (columna número 11 = índice 10)
+    # Eliminar duplicados basados en la columna "Case ID"
     df_final = pd.read_excel(prueba_path)
-    case_id_column = df_final.columns[10]  # Ajustado según posición 11
+    case_id_column = df_final.columns[10]  # columna número 11 (índice 10)
+    
+    original_count = len(df_final)
     df_final = df_final.drop_duplicates(subset=case_id_column, keep="first")
+    new_count = len(df_final)
+    removed_count = original_count - new_count
+    
     df_final.to_excel(prueba_path, index=False)
+    
 
+print(f"File finished — {removed_count} duplicated case(s) removed.")
 
 # --- Mensaje final ---
 print("File finished")
