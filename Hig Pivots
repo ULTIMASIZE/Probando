@@ -1,54 +1,122 @@
-from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.worksheet.pivot import (
-    PivotTable,
-    PivotCache,
-    PivotField,
-    CacheField,
-    CacheHierarchy,
-    SharedItems,
-)
-from openpyxl.utils import get_column_letter
+import pandas as pd
+import os
+from openpyxl import load_workbook
+from datetime import datetime
 
-# Paso 1: Abrimos el archivo
-wb = load_workbook(prueba_path)
+# --- Funciones auxiliares ---
 
-# Paso 2: Accedemos a la hoja con los datos
-data_sheet = wb["Sheet1"]
-max_row = data_sheet.max_row
-max_col = data_sheet.max_column
+def escribir_categoria(df, categoria, writer, sheet, new_columns, pend_date=""):
+    if not df.empty:
+        df["Category"] = categoria
+        if pend_date != "varios":
+            df["Pend Date"] = pend_date
+        df = df[new_columns]
+        df.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
 
-# Paso 3: Creamos una hoja nueva para la pivot
-if "Pivot 1" in wb.sheetnames:
-    del wb["Pivot 1"]
-pivot_sheet = wb.create_sheet("Pivot 1")
+def calcular_dias(df, fecha_col, hoy, direccion="pasado"):
+    fechas = pd.to_datetime(df[fecha_col], errors='coerce')
+    return (hoy - fechas).dt.days if direccion == "pasado" else (fechas - hoy).dt.days
 
-# Paso 4: Definir el rango de origen de datos
-data_range = f"Sheet1!A1:{get_column_letter(max_col)}{max_row}"
+# --- Setup de rutas ---
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+folder_path = os.path.join(desktop, "BA Hig")
 
-# Paso 5: Crear el PivotCache (fuente)
-pivot_cache = PivotCache(recordCount=max_row - 1, cacheFields=[], cacheSource="worksheet")
-for col in range(1, max_col + 1):
-    header = data_sheet.cell(row=1, column=col).value
-    pivot_cache.cacheFields.append(
-        CacheField(name=header, sharedItems=SharedItems())
-    )
+base_path = os.path.join(folder_path, "base.csv")
+prueba_path = os.path.join(folder_path, "prueba.xlsx")
 
-# Paso 6: Crear el PivotTable
-pivot_table = PivotTable(name="PivotTable1", cache=pivot_cache, ref="A3", data=data_range)
+# --- Lectura de datos ---
+df_base = pd.read_csv(base_path)
+new_columns = list(df_base.columns) + ["Category", "Pend Date"]
+df_empty = pd.DataFrame(columns=new_columns)
+df_empty.to_excel(prueba_path, index=False)
 
-# --- Definir filas, columnas, valores ---
-# Row: Market
-pivot_table.rowFields.append(PivotField(name="Market", axis="row"))
+book = load_workbook(prueba_path)
+hoy = pd.Timestamp(datetime.today().date())
 
-# Column: Category
-pivot_table.colFields.append(PivotField(name="Category", axis="col"))
+with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+    writer.book = book
+    writer.sheets = {ws.title: ws for ws in book.worksheets}
+    sheet = writer.sheets["Sheet1"]
 
-# Values: Count of Case ID
-pivot_table.dataFields.append(PivotField(name="Case ID", axis="data", dataFunction="count"))
+    # --- Columnas de interés ---
+    col_J = df_base.columns[9]
+    col_L = df_base.columns[11]
+    col_I = df_base.columns[8]
+    col_BE = df_base.columns[56]
+    col_fecha_112 = df_base.columns[112]
+    col_fecha_98 = df_base.columns[98]
 
-# Agregar la pivot a la hoja
-pivot_sheet.add_pivot(pivot_table)
+    # --- Paso 1: High RTW ---
+    df_high_rtw = df_base[df_base[col_L] > 11].copy()
+    escribir_categoria(df_high_rtw, "High RTW", writer, sheet, new_columns)
 
-# Paso 7: Guardar el archivo
-wb.save(prueba_path)
-print("Tabla dinámica creada en hoja 'Pivot 1'")
+    # --- Paso 2: Case Age > 60 days ---
+    df_case_age = df_base[df_base[col_L] > 60].copy()
+    escribir_categoria(df_case_age, "Case Age > 60 days", writer, sheet, new_columns)
+
+    # --- Paso 3: Filtros por col J ---
+    filtros = {
+        "OverallSLA": "OverallSLA WB",
+        "GD_SystemErrors": "System Errors WB",
+        "GD_SPECIAL_HANDLING_09": "Special Handling WB",
+        "GD_SPECIAL_HANDLING_04": "Special Handling WB",
+        "GD_Exceptions": "Exceptions WB",
+        "GD_DISPUTE_PARKING": "Dispute Parking WB"
+    }
+
+    for valor, categoria in filtros.items():
+        df_filtro = df_base[df_base[col_J] == valor].copy()
+        escribir_categoria(df_filtro, categoria, writer, sheet, new_columns)
+
+    # --- Paso 4: J vacío (NaN) ---
+    df_null = df_base[df_base[col_J].isna()].copy()
+    escribir_categoria(df_null, "Null WB", writer, sheet, new_columns)
+
+    # --- Paso 5: Domain Mismatch ---
+    domain_mismatch_vals = [
+        "GD_CANADA", "GD_MULTICURRENCY", "GD_US_CST", "GD_UK", "GD_Brigthon_Approval_4"
+    ]
+    df_mismatch = df_base[df_base[col_J].isin(domain_mismatch_vals)].copy()
+    escribir_categoria(df_mismatch, "Domain Mismatch", writer, sheet, new_columns)
+
+    # --- Paso 6: System hold > 3 días ---
+    df_hold = df_base[
+        (df_base[col_J] == "GD_SYSTEM_HOLD") & (df_base[col_L] >= 3)
+    ].copy()
+    escribir_categoria(df_hold, "System hold > 3 days", writer, sheet, new_columns)
+
+    # --- Paso 7: Status Mismatch ---
+    df_status_1 = df_base[
+        (df_base[col_I] == "No") & (df_base[col_BE] == "Open")
+    ].copy()
+
+    df_status_2 = df_base[
+        (df_base[col_I] == "Yes") & (df_base[col_BE] == "Pended")
+    ].copy()
+
+    df_status_mismatch = pd.concat([df_status_1, df_status_2])
+    escribir_categoria(df_status_mismatch, "Status Mismatch", writer, sheet, new_columns)
+
+    # --- Paso 8: Pend expired (fecha pasada > 3 días) ---
+    dias_expired = calcular_dias(df_base, col_fecha_112, hoy, direccion="pasado")
+    df_pend_expired = df_base[
+        (dias_expired > 3) & (df_base[col_J] == "GD_Pend")
+    ].copy()
+    escribir_categoria(df_pend_expired, "Pend expired date", writer, sheet, new_columns)
+
+    # --- Paso 9: Pend > 34 días a futuro ---
+    dias_futuro = calcular_dias(df_base, col_fecha_98, hoy, direccion="futuro")
+    df_pend_34 = df_base[
+        (df_base[col_J] == "GD_Pend") & (dias_futuro > 34)
+    ].copy()
+
+    if not df_pend_34.empty:
+        df_pend_34["Pend Date"] = dias_futuro[(df_base[col_J] == "GD_Pend") & (dias_futuro > 34)].astype(int).values
+        df_pend_34["Category"] = "Pend > 34"
+        df_pend_34 = df_pend_34[new_columns]
+        df_pend_34.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
+
+# --- Salida ---
+print("Valores únicos en columna I:", df_base[col_I].unique())
+print("Valores únicos en columna BE:", df_base[col_BE].unique())
+print("File finished")
