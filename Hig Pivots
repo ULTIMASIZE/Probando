@@ -3,59 +3,59 @@ import os
 from openpyxl import load_workbook
 from datetime import datetime
 
-# --- Funciones auxiliares ---
+# --- Helper functions ---
 
-def escribir_categoria(df, categoria, writer, sheet, new_columns, pend_date=""):
+def write_category(df, category, writer, sheet, new_columns, pend_date=""):
     if not df.empty:
-        df["Category"] = categoria
-        if pend_date != "varios":
+        df["Category"] = category
+        if pend_date != "multiple":
             df["Pend Date"] = pend_date
         df = df[new_columns]
         df.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
 
-def calcular_dias(df, fecha_col, hoy, direccion="pasado"):
-    fechas = pd.to_datetime(df[fecha_col], errors='coerce')
-    return (hoy - fechas).dt.days if direccion == "pasado" else (fechas - hoy).dt.days
+def calculate_days(df, date_col, today, direction="past"):
+    dates = pd.to_datetime(df[date_col], errors='coerce')
+    return (today - dates).dt.days if direction == "past" else (dates - today).dt.days
 
-# --- Setup de rutas ---
+# --- Path setup ---
 desktop = os.path.join(os.path.expanduser("~"), "Desktop")
 folder_path = os.path.join(desktop, "BA Hig")
 
 base_path = os.path.join(folder_path, "base.csv")
-prueba_path = os.path.join(folder_path, "prueba.xlsx")
+output_path = os.path.join(folder_path, "prueba.xlsx")
 
-# --- Lectura de datos ---
+# --- Read data ---
 df_base = pd.read_csv(base_path)
 new_columns = list(df_base.columns) + ["Category", "Pend Date"]
 df_empty = pd.DataFrame(columns=new_columns)
-df_empty.to_excel(prueba_path, index=False)
+df_empty.to_excel(output_path, index=False)
 
-book = load_workbook(prueba_path)
-hoy = pd.Timestamp(datetime.today().date())
+workbook = load_workbook(output_path)
+today = pd.Timestamp(datetime.today().date())
 
-with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-    writer.book = book
-    writer.sheets = {ws.title: ws for ws in book.worksheets}
+with pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+    writer.book = workbook
+    writer.sheets = {ws.title: ws for ws in workbook.worksheets}
     sheet = writer.sheets["Sheet1"]
 
-    # --- Columnas de interés ---
+    # --- Column references ---
     col_J = df_base.columns[9]
     col_L = df_base.columns[11]
     col_I = df_base.columns[8]
     col_BE = df_base.columns[56]
-    col_fecha_112 = df_base.columns[112]
-    col_fecha_98 = df_base.columns[98]
+    col_date_112 = df_base.columns[112]
+    col_date_98 = df_base.columns[98]
 
-    # --- Paso 1: High RTW ---
+    # --- Step 1: High RTW ---
     df_high_rtw = df_base[df_base[col_L] > 11].copy()
-    escribir_categoria(df_high_rtw, "High RTW", writer, sheet, new_columns)
+    write_category(df_high_rtw, "High RTW", writer, sheet, new_columns)
 
-    # --- Paso 2: Case Age > 60 days ---
+    # --- Step 2: Case Age > 60 days ---
     df_case_age = df_base[df_base[col_L] > 60].copy()
-    escribir_categoria(df_case_age, "Case Age > 60 days", writer, sheet, new_columns)
+    write_category(df_case_age, "Case Age > 60 days", writer, sheet, new_columns)
 
-    # --- Paso 3: Filtros por col J ---
-    filtros = {
+    # --- Step 3: Filters by column J ---
+    filters = {
         "OverallSLA": "OverallSLA WB",
         "GD_SystemErrors": "System Errors WB",
         "GD_SPECIAL_HANDLING_09": "Special Handling WB",
@@ -64,28 +64,28 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
         "GD_DISPUTE_PARKING": "Dispute Parking WB"
     }
 
-    for valor, categoria in filtros.items():
-        df_filtro = df_base[df_base[col_J] == valor].copy()
-        escribir_categoria(df_filtro, categoria, writer, sheet, new_columns)
+    for value, category in filters.items():
+        df_filtered = df_base[df_base[col_J] == value].copy()
+        write_category(df_filtered, category, writer, sheet, new_columns)
 
-    # --- Paso 4: J vacío (NaN) ---
+    # --- Step 4: J is empty (NaN) ---
     df_null = df_base[df_base[col_J].isna()].copy()
-    escribir_categoria(df_null, "Null WB", writer, sheet, new_columns)
+    write_category(df_null, "Null WB", writer, sheet, new_columns)
 
-    # --- Paso 5: Domain Mismatch ---
-    domain_mismatch_vals = [
+    # --- Step 5: Domain Mismatch ---
+    domain_mismatch_values = [
         "GD_CANADA", "GD_MULTICURRENCY", "GD_US_CST", "GD_UK", "GD_Brigthon_Approval_4"
     ]
-    df_mismatch = df_base[df_base[col_J].isin(domain_mismatch_vals)].copy()
-    escribir_categoria(df_mismatch, "Domain Mismatch", writer, sheet, new_columns)
+    df_mismatch = df_base[df_base[col_J].isin(domain_mismatch_values)].copy()
+    write_category(df_mismatch, "Domain Mismatch", writer, sheet, new_columns)
 
-    # --- Paso 6: System hold > 3 días ---
+    # --- Step 6: System hold > 3 days ---
     df_hold = df_base[
         (df_base[col_J] == "GD_SYSTEM_HOLD") & (df_base[col_L] >= 3)
     ].copy()
-    escribir_categoria(df_hold, "System hold > 3 days", writer, sheet, new_columns)
+    write_category(df_hold, "System hold > 3 days", writer, sheet, new_columns)
 
-    # --- Paso 7: Status Mismatch ---
+    # --- Step 7: Status Mismatch ---
     df_status_1 = df_base[
         (df_base[col_I] == "No") & (df_base[col_BE] == "Open")
     ].copy()
@@ -95,28 +95,28 @@ with pd.ExcelWriter(prueba_path, engine='openpyxl', mode='a', if_sheet_exists='o
     ].copy()
 
     df_status_mismatch = pd.concat([df_status_1, df_status_2])
-    escribir_categoria(df_status_mismatch, "Status Mismatch", writer, sheet, new_columns)
+    write_category(df_status_mismatch, "Status Mismatch", writer, sheet, new_columns)
 
-    # --- Paso 8: Pend expired (fecha pasada > 3 días) ---
-    dias_expired = calcular_dias(df_base, col_fecha_112, hoy, direccion="pasado")
+    # --- Step 8: Pend expired (past date > 3 days) ---
+    days_expired = calculate_days(df_base, col_date_112, today, direction="past")
     df_pend_expired = df_base[
-        (dias_expired > 3) & (df_base[col_J] == "GD_Pend")
+        (days_expired > 3) & (df_base[col_J] == "GD_Pend")
     ].copy()
-    escribir_categoria(df_pend_expired, "Pend expired date", writer, sheet, new_columns)
+    write_category(df_pend_expired, "Pend expired date", writer, sheet, new_columns)
 
-    # --- Paso 9: Pend > 34 días a futuro ---
-    dias_futuro = calcular_dias(df_base, col_fecha_98, hoy, direccion="futuro")
+    # --- Step 9: Pend > 34 future days ---
+    days_future = calculate_days(df_base, col_date_98, today, direction="future")
     df_pend_34 = df_base[
-        (df_base[col_J] == "GD_Pend") & (dias_futuro > 34)
+        (df_base[col_J] == "GD_Pend") & (days_future > 34)
     ].copy()
 
     if not df_pend_34.empty:
-        df_pend_34["Pend Date"] = dias_futuro[(df_base[col_J] == "GD_Pend") & (dias_futuro > 34)].astype(int).values
+        df_pend_34["Pend Date"] = days_future[
+            (df_base[col_J] == "GD_Pend") & (days_future > 34)
+        ].astype(int).values
         df_pend_34["Category"] = "Pend > 34"
         df_pend_34 = df_pend_34[new_columns]
         df_pend_34.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
 
-# --- Salida ---
-print("Valores únicos en columna I:", df_base[col_I].unique())
-print("Valores únicos en columna BE:", df_base[col_BE].unique())
+# --- Final output ---
 print("File finished")
