@@ -1,0 +1,36 @@
+select distinct
+  a.case_id,
+  date(a.latest_rslv_ts) as latest_rslv_dt,
+  a.cm15,	
+  a.latest_rslv_rsn,
+  adj.adj_type1,
+  c.latest_rslv_note,
+  d.slct_ltr_id,
+  d.ltr_ds,
+  d.creat_ts_gmt
+
+from axp-lumi.dw.gsn_gdm_case_detail a
+left join (
+    select 
+      substring(pz_ins_key,25,11) as case_id_sub,
+      adj_type as adj_type1,
+      adj_ts_gmt
+    from axp-lumi.dw.gdm_adjustment
+    where adj_or_liab_shft = 'Adjustment'
+    qualify row_number() over (
+      partition by substring(pz_ins_key,25,11) 
+      order by adj_ts_gmt desc
+    ) = 1
+) as adj
+  on adj.case_id_sub = a.case_id 
+left join axp-lumi.dw.gsn_clic_case_detail c
+  on a.case_id = c.cust_lst_nm
+left join axp-lumi.dw.gdm_letter_req d 
+  on a.case_id = d.case_id
+
+where a.case_type = 'Dispute'
+  and a.full_case_sta = 'Resolved-Completed'
+  and date(a.latest_rslv_ts) between '2025-08-04' and '2025-08-20'
+  and a.crnt_case_rec_flag = 'Yes'
+  and a.case_mode in ('E2E','SPLIT','ISSUER')
+  and a.cm_mkt = 'Argentina'
