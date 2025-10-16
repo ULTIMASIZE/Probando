@@ -1,23 +1,9 @@
-# --- Remove Duplicates on the final output (by column position 11 = 'K') ---
-try:
-    # Leer la hoja final creada
-    df_out = pd.read_excel(output_path, sheet_name="Sheet1")
+    # --- Step X: Mexico ISO 9997 ---
+    col_F = df_base.columns[5]    # columna 6 → índice 5
+    col_CD = df_base.columns[85]  # columna 86 → índice 85
 
-    before = len(df_out)
+    df_mexico_iso = df_base[(df_base[col_F] == "Mexico") & (df_base[col_CD] == 9997)].copy()
+    write_category(df_mexico_iso, "Mexico Iso 9997", writer, sheet, new_columns)
 
-    # Obtener el nombre real de la columna 11 (posición 10)
-    target_col = df_out.columns[10]
-    print(f"Removing duplicates based on column: {target_col}")
 
-    # Eliminar duplicados por esa columna
-    df_out = df_out.drop_duplicates(subset=[target_col], keep="first")
-
-    # Reescribir el archivo Excel sin duplicados
-    with pd.ExcelWriter(output_path, engine="openpyxl", mode="w") as writer2:
-        df_out.to_excel(writer2, index=False, sheet_name="Sheet1")
-
-    removed = before - len(df_out)
-    print(f"Remove Duplicates: {removed} filas eliminadas (columna '{target_col}').")
-
-except Exception as e:
-    print(f"Remove Duplicates: omitido por error -> {e}")
+    df_mexico_iso = df_base[(df_base[col_F] == "Mexico") & (df_base[col_CD] == "9997")].copy()
