@@ -1,9 +1,18 @@
-    # --- Step X: Mexico ISO 9997 ---
-    col_F = df_base.columns[5]    # columna 6 → índice 5
-    col_CD = df_base.columns[85]  # columna 86 → índice 85
+import pandas as pd
+import os
 
-    df_mexico_iso = df_base[(df_base[col_F] == "Mexico") & (df_base[col_CD] == 9997)].copy()
-    write_category(df_mexico_iso, "Mexico Iso 9997", writer, sheet, new_columns)
+# --- Paths ---
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+folder_path = os.path.join(desktop, "BA Hig")
+base_path = os.path.join(folder_path, "base.csv")
 
+# --- Leer archivo ---
+df = pd.read_csv(base_path)
 
-    df_mexico_iso = df_base[(df_base[col_F] == "Mexico") & (df_base[col_CD] == "9997")].copy()
+# --- Mostrar nombres de columnas ---
+print(f"\nTotal de columnas: {len(df.columns)}")
+print(f"Columna 6 (index 5): {df.columns[5]}")
+print(f"Columna 85 (index 84): {df.columns[84]}\n")
+
+# --- Mostrar algunas filas de ambas columnas ---
+print(df.iloc[:, [5, 84]].head(20))  # muestra las primeras 20 filas
