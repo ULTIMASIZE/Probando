@@ -1,0 +1,19 @@
+# --- Remove Duplicates on the final output (by "Case ID") ---
+try:
+    # Leer la hoja final creada
+    df_out = pd.read_excel(output_path, sheet_name="Sheet1")
+
+    before = len(df_out)
+
+    # Eliminar duplicados por la columna "Case ID"
+    df_out = df_out.drop_duplicates(subset=["Case ID"], keep="first")
+
+    # Reescribir el archivo Excel sin duplicados
+    with pd.ExcelWriter(output_path, engine="openpyxl", mode="w") as writer2:
+        df_out.to_excel(writer2, index=False, sheet_name="Sheet1")
+
+    removed = before - len(df_out)
+    print(f"Remove Duplicates: {removed} filas eliminadas (clave = 'Case ID').")
+
+except Exception as e:
+    print(f"Remove Duplicates: omitido por error -> {e}")
