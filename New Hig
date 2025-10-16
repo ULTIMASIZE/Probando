@@ -1,0 +1,150 @@
+import pandas as pd
+import os
+from openpyxl import load_workbook
+from datetime import datetime
+
+# --- Helper functions ---
+
+def write_category(df, category, writer, sheet, new_columns, pend_date=""):
+    if not df.empty:
+        df = df.copy()
+        df["Category"] = category
+        if pend_date != "multiple":
+            df["Pend Date"] = pend_date
+        df = df[new_columns]
+        df.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
+
+def calculate_days(df, date_col, as_of_date, direction="past"):
+    dates = pd.to_datetime(df[date_col], errors='coerce')
+    as_of = pd.Timestamp(as_of_date)
+    return (as_of - dates).dt.days if direction == "past" else (dates - as_of).dt.days
+
+# --- Path setup ---
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+folder_path = os.path.join(desktop, "BA Hig")
+
+base_path = os.path.join(folder_path, "raw data.csv")
+output_path = os.path.join(folder_path, "report file.xlsx")
+
+# --- Ask for the file date (ENGLISH PROMPT) ---
+# The user requested: create variable "file_date" and ask in English, including the expected format.
+# Example valid input: 2025-10-16
+while True:
+    file_date_str = input("Enter the file date to use for day calculations (format: YYYY-MM-DD, e.g., 2025-10-16): ").strip()
+    try:
+        # Strictly enforce the format YYYY-MM-DD
+        file_date = datetime.strptime(file_date_str, "%Y-%m-%d").date()
+        break
+    except ValueError:
+        print("Invalid date. Please enter the date in the format YYYY-MM-DD (e.g., 2025-10-16).")
+
+# --- Read data ---
+df_base = pd.read_csv(base_path)
+new_columns = list(df_base.columns) + ["Category", "Pend Date"]
+df_empty = pd.DataFrame(columns=new_columns)
+df_empty.to_excel(output_path, index=False)
+
+workbook = load_workbook(output_path)
+
+# Use the user-provided file_date instead of today's date
+as_of_date = pd.Timestamp(file_date)
+
+with pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+    writer.book = workbook
+    writer.sheets = {ws.title: ws for ws in workbook.worksheets}
+    sheet = writer.sheets["Sheet1"]
+
+    # --- Column references ---
+    col_J = df_base.columns[9]
+    col_L = df_base.columns[11]
+    col_I = df_base.columns[8]
+    col_BE = df_base.columns[56]
+    col_date_112 = df_base.columns[112]
+    col_date_98 = df_base.columns[98]
+    col_29 = df_base.columns[28]
+
+    # --- Step 3: Filters by column J ---
+    filters = {
+        "OverallSLA": "OverallSLA WB",
+        "GD_SystemErrors": "System Errors WB",
+        "GD_SPECIAL_HANDLING_09": "Special Handling WB",
+        "GD_SPECIAL_HANDLING_04": "Special Handling WB",
+        "GD_SPECIAL_HANDLING_01": "Special Handling WB",
+        "GD_SPECIAL_HANDLING_08": "Special Handling WB",
+        "GD_Exceptions": "Exceptions WB",
+        "GD_DISPUTE_PARKING": "Dispute Parking WB",
+        "GD_Arg_Approval_4": "Approval WB",
+        "GD_Arg_Approval_5": "Approval WB",
+        "GD_Arg_Approval_6": "Approval WB",
+        "GD_CORRES_MEX": "Corres WB",
+        "GD_CORRES_FRA": "Corres WB",
+        "GD_CORRES_GER": "Corres WB",
+        "GD_CORRES_ESP": "Corres WB",
+        "GD_CORRES_ITALY": "Corres WB",
+        "GD_CORRES_ARG": "Corres WB",
+        "GD_CORRES_ENG": "Corres WB",
+        "GD_BANKRUPT_SE_01": "Bankrupt_SE WB"
+    }
+
+    for value, category in filters.items():
+        df_filtered = df_base[df_base[col_J] == value].copy()
+        write_category(df_filtered, category, writer, sheet, new_columns)
+
+    # --- Step 4: J is empty (NaN) ---
+    df_null = df_base[df_base[col_J].isna()].copy()
+    write_category(df_null, "Null WB", writer, sheet, new_columns)
+
+    # --- Step 5: Other WB (INVERTED LOGIC) ---
+    # The user requested: make df_mismatch select WBs that are NOT within a given list.
+    # Leave the list empty so the user can add allowed WBs later.
+    allowed_wbs = [
+        # e.g., "GD_US_CENTURION_Approval_5", "GD_US_Pluto", ...
+        # Add allowed WB values here. Any WB NOT in this list (and not NaN) will be flagged as "Other WB".
+    ]
+    df_mismatch = df_base[~df_base[col_J].isin(allowed_wbs) & df_base[col_J].notna()].copy()
+    write_category(df_mismatch, "Other WB", writer, sheet, new_columns)
+
+    # --- Step 6: System hold > 3 days ---
+    df_hold = df_base[(df_base[col_J] == "GD_SYSTEM_HOLD") & (df_base[col_L] >= 3)].copy()
+    write_category(df_hold, "System hold > 3 days", writer, sheet, new_columns)
+
+    # --- Step 7: Status Mismatch ---
+    df_status_1 = df_base[(df_base[col_I] == "No") & (df_base[col_BE] == "Open")].copy()
+    df_status_2 = df_base[(df_base[col_I] == "Yes") & (df_base[col_BE] == "Pended")].copy()
+    df_status_mismatch = pd.concat([df_status_1, df_status_2], ignore_index=True)
+    write_category(df_status_mismatch, "Status Mismatch", writer, sheet, new_columns)
+
+    # --- Step 8: Pend expired (past date > 3 days) ---
+    days_expired = calculate_days(df_base, col_date_112, as_of_date, direction="past")
+    df_pend_expired = df_base[(days_expired > 3) & (df_base[col_J] == "GD_Pend")].copy()
+    write_category(df_pend_expired, "Pend expired date", writer, sheet, new_columns)
+
+    # --- Step 9: Pend > 34 future days ---
+    days_future = calculate_days(df_base, col_date_98, as_of_date, direction="future")
+    df_pend_34 = df_base[(df_base[col_J] == "GD_Pend") & (days_future > 34)].copy()
+
+    if not df_pend_34.empty:
+        df_pend_34 = df_pend_34.copy()
+        df_pend_34["Pend Date"] = days_future[(df_base[col_J] == "GD_Pend") & (days_future > 34)].astype(int).values
+        df_pend_34["Category"] = "Pend > 34"
+        df_pend_34 = df_pend_34[new_columns]
+        df_pend_34.to_excel(writer, index=False, header=False, startrow=sheet.max_row, sheet_name="Sheet1")
+
+    # --- Step 1: High RTW ---
+    df_high_rtw = df_base[df_base[col_L] >= 11].copy()
+    write_category(df_high_rtw, "High RTW", writer, sheet, new_columns)
+
+    # --- Step 2: Case Age > 60 days ---
+    df_case_age = df_base[df_base[col_L] >= 60].copy()
+    write_category(df_case_age, "Case Age > 60 days", writer, sheet, new_columns)
+
+    # --- Step 10: Past BOP ---
+    df_past_bop = df_base[df_base[col_29] < 0].copy()
+    write_category(df_past_bop, "Past BOP", writer, sheet, new_columns)
+
+    # --- Step 11: Pending BOP ---
+    df_pending_bop = df_base[(df_base[col_I] == "No") & (df_base[col_29].between(1, 5))].copy()
+    write_category(df_pending_bop, "Pending BOP", writer, sheet, new_columns)
+
+# --- Final output ---
+print("File finished")
