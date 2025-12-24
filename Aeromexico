@@ -1,0 +1,47 @@
+WITH casos_filtrados AS (
+  SELECT
+    d.case_id,
+    d.iso_cd,
+    d.commun_srce,
+    d.dspt_am_usd,
+    d.req_dt,
+    d.pz_ins_key,
+    d.cov_inskey,
+    axp-lumi.dw.decrypt_sde(
+      axp-lumi.dw.get_sde_tag('cm15','gdm_dispute'),
+      d.cm15
+    ) AS cm15_dec,
+    ROW_NUMBER() OVER (
+      PARTITION BY d.pz_ins_key
+      ORDER BY d.cstone_last_updatetm DESC
+    ) AS rn
+  FROM `axp-lumi.dw.gdm_dispute` d
+  WHERE CAST(d.se10 AS STRING) IN ('9352724851')
+    AND d.req_dt >= '2025-12-23'
+),
+
+demo AS (
+  SELECT
+    axp-lumi.dw.decrypt_sde(
+      axp-lumi.dw.get_sde_tag('cm15','mns_demographics_ar'),
+      cm15
+    ) AS cm15_dec,
+    cm_nm
+  FROM `axp-lumi.dw.mns_demographics_ar`
+)
+
+SELECT
+  d.case_id,
+  d.cm15_dec AS cm15,
+  d.iso_cd,
+  d.commun_srce,
+  d.dspt_am_usd,
+  d.req_dt,
+  dem.cm_nm
+FROM casos_filtrados d
+LEFT JOIN `axp-lumi.dw.gdm_claim` c
+  ON c.pz_ins_key = d.cov_inskey
+LEFT JOIN demo dem
+  ON dem.cm15_dec = d.cm15_dec
+WHERE d.rn = 1
+ORDER BY d.req_dt DESC;
